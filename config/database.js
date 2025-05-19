@@ -1,30 +1,17 @@
 require('dotenv').config();
+const { Sequelize } = require('sequelize');
 
-module.exports = {
-  development: {
-    username: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-    dialect: 'mysql',
-    logging: console.log,
-  },
-  test: {
-    username: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-    dialect: 'mysql',
-  },
-  production: {
-    username: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-    dialect: 'mysql',
+const env = process.env.NODE_ENV || 'development';
+const db_config = require('./config')[env];
+
+
+const sequelize = new Sequelize(
+  db_config.database,
+  db_config.username,
+  db_config.password,
+  {
+    host: db_config.host,
+    dialect: db_config.dialect,
     logging: false,
     pool: {
       max: 5,
@@ -32,5 +19,7 @@ module.exports = {
       acquire: 30000,
       idle: 10000,
     },
-  },
-};
+  }
+);
+
+module.exports = sequelize;

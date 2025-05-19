@@ -1,7 +1,7 @@
 const http = require('http');
-const config = require('./config/config');
+const config = require('./config/global');
 const app = require('./app');
-const logger = require('./config/logger');
+const logger = require('./utils/logger');
 const { sequelize } = require('./models');
 
 const server = http.createServer(app);

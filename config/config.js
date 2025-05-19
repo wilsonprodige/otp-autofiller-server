@@ -1,13 +1,37 @@
 require('dotenv').config();
-
 module.exports = {
-  env: process.env.NODE_ENV || 'development',
-  port: process.env.PORT || 3000,
-  jwt: {
-    secret: process.env.JWT_SECRET,
-  },
-  google: {
-    clientId: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  },
+    
+        development: {
+          username: process.env.DB_USER,
+          password: process.env.DB_PASSWORD,
+          database: process.env.DB_NAME,
+          host: process.env.DB_HOST,
+          port: process.env.DB_PORT,
+          dialect: 'mysql',
+          logging: console.log,
+        },
+        test: {
+          username: process.env.DB_USER,
+          password: process.env.DB_PASSWORD,
+          database: process.env.DB_NAME,
+          host: process.env.DB_HOST,
+          port: process.env.DB_PORT,
+          dialect: 'mysql',
+        },
+        production: {
+          username: process.env.DB_USER,
+          password: process.env.DB_PASSWORD,
+          database: process.env.DB_NAME,
+          host: process.env.DB_HOST,
+          port: process.env.DB_PORT,
+          dialect: 'mysql',
+          logging: false,
+          pool: {
+            max: 5,
+            min: 0,
+            acquire: 30000,
+            idle: 10000,
+          },
+        },
+      
 };
