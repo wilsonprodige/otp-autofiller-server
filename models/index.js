@@ -1,8 +1,10 @@
 const sequelize = require('../config/database');
 const User  = require('./user.model');
+const WebPushSubscription = require('./webPushSubscription');
 
 const models = {
-  User
+  User,
+  WebPushSubscription
 };
 
 Object.values(models).forEach((model) => {
@@ -10,7 +12,7 @@ Object.values(models).forEach((model) => {
     model.associate(models);
   }
 });
-sequelize.sync({ alter: true }).catch((err) => {
+sequelize.sync().catch((err) => {
   console.error('Database sync error:', err);
 });
 
