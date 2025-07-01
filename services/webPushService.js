@@ -19,7 +19,7 @@ class WebPushService {
 
     static async sendNotification(userId, payload) {
         const subscriptions = await WebPushSubscription.findAll({ where: { userId } });
-        
+        //console.log('---subscriptions-->', subscriptions);
         const results = await Promise.allSettled(
           subscriptions.map(sub => {
             const subscription = {
