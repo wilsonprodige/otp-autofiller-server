@@ -3,8 +3,8 @@ const { verifyToken } = require('../utils/token');
 const ApiError = require('../utils/apiError');
 const { User } = require('../models');
 
-const auth = () => {
-  return async (req, res, next) => {
+const auth =async  (req, res, next) => {
+  
     try {
       const token = req.headers.authorization?.split(' ')[1];
       if (!token) {
@@ -23,7 +23,9 @@ const auth = () => {
     } catch (error) {
       next(error);
     }
-  };
+  
 };
 
-module.exports = auth;
+module.exports ={
+  auth
+} ;
