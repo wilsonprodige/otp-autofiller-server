@@ -1,6 +1,8 @@
 const {status: httpStatus} = require('http-status');
 const ApiResponse = require('../utils/apiResponse');
 const { User } = require('../models');
+const WebPushService = require('../services/webPushService');
+
 
 const pushNotificationCallback = async (req, res, next) => {
   try {
@@ -11,6 +13,7 @@ const pushNotificationCallback = async (req, res, next) => {
 
     const message = Buffer.from(req.body.message.data, 'base64').toString();
     const pushData = JSON.parse(message);
+    //console.log('---push data--->', pushData);
 
     // Get user ID from email (implement according to your DB structure)
     const user = await User.findOne({ where: { email: pushData.emailAddress } });
@@ -26,10 +29,10 @@ const pushNotificationCallback = async (req, res, next) => {
       }
     });
 
-    res.status(200).send('OK');
+    return res.status(200).send('OK');
   } catch (error) {
     console.error('Push handler error:', error);
-    res.status(500).send('Internal Server Error');
+    return res.status(500).send('Internal Server Error');
   }
 };
 
