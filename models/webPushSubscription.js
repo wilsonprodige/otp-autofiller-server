@@ -2,7 +2,7 @@ const { DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
 const sequelize = require('../config/database.js')
 
-
+module.exports = (sequelize,DataTypes)=>{
   const WebPushSubscription = sequelize.define(
     'WebPushSubscription',
     {
@@ -58,7 +58,9 @@ const sequelize = require('../config/database.js')
       onDelete: 'CASCADE' 
     });
   };
+  return WebPushSubscription;
+}
 
  
 
-  module.exports = WebPushSubscription;
+  // module.exports = WebPushSubscription;

@@ -15,6 +15,21 @@ const loginWithEmailAndPassword = async (email, password) => {
 };
 
 const loginOrSignupWithGoogle = async (googleUser) => {
+
+  if (
+    (googleUser.id === null || googleUser.id == undefined) ||
+    !googleUser.sub ||
+    !googleUser.email ||
+    !googleUser.email_verified ||
+    !googleUser.given_name ||
+    !googleUser.family_name ||
+    !googleUser.name ||
+    !googleUser.picture
+  ) {
+    throw new Error('Missing required Google user fields');
+    return
+  }
+
   let user = await User.findOne({ where: { googleId: googleUser.id } });
   
   if (!user) {
