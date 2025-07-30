@@ -2,7 +2,7 @@ const { DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
 const sequelize = require('../config/database.js')
 
-
+module.exports = (sequelize, DataTypes)=>{
   const User = sequelize.define(
     'User',
     {
@@ -71,5 +71,6 @@ const sequelize = require('../config/database.js')
   User.prototype.isPasswordMatch = async function (password) {
     return bcrypt.compare(password, this.password);
   };
-
-  module.exports = User;
+  return User;
+}
+  // module.exports = User;

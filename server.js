@@ -44,3 +44,6 @@ process.on('SIGTERM', () => {
     server.close();
   }
 });
+
+const setupSubscriptionChecks = require('./jobs/subscriptionCheck.job');
+setupSubscriptionChecks();
