@@ -1,5 +1,6 @@
 const { UserSubscription, BillingPlan } = require('../models');
 const moment = require('moment');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 class SubscriptionService {
   static async getPlans() {
@@ -82,6 +83,162 @@ class SubscriptionService {
     }
 
     return expiredSubs.length;
+  }
+
+  static async createStripeProduct(plan) {
+    try {
+      // Check if product already exists in Stripe
+      let stripeProduct = await stripe.products.search({
+        query: `metadata['planId']:'${plan.id}'`,
+      });
+
+      if (stripeProduct.data.length === 0) {
+        //console.log('product', stripeProduct);
+        // Create product in Stripe
+        stripeProduct = await stripe.products.create({
+          name: plan.name,
+          description: plan.description || `Subscription for ${plan.name}`,
+          metadata: { planId: plan.id },
+        });
+      } else {
+        stripeProduct = stripeProduct.data[0];
+      }
+
+      // Check if price exists
+      let stripePrice = await stripe.prices.search({
+        query: `product:'${stripeProduct.id}' AND metadata['planId']:'${plan.id}'`,
+      });
+
+      if (stripePrice.data.length === 0) {
+        //console.log('price', stripePrice);
+        // Create price in Stripe
+        stripePrice = await stripe.prices.create({
+          product: stripeProduct.id,
+          unit_amount: plan.price * 100, // Stripe uses cents
+          currency: 'usd',
+          recurring: {
+            interval: plan.billingCycle === 'monthly' ? 'month' : 'year',
+          },
+          metadata: { planId: plan.id },
+        });
+      } else {
+        stripePrice = stripePrice.data[0];
+      }
+
+      return stripePrice.id;
+    } catch (error) {
+      console.error('Error creating Stripe product:', error);
+      throw error;
+    }
+  }
+
+  static async createSubscription(userId, planId, paymentData = {}) {
+    const plan = await BillingPlan.findByPk(planId);
+    if (!plan) throw new Error('Plan not found');
+
+    // Create Stripe customer if not exists
+    let customer;
+    try {
+      customer = await stripe.customers.create({
+        email: paymentData.email,
+        metadata: { userId: userId.toString() },
+        payment_method: paymentData.paymentMethodId,
+        invoice_settings: {
+          default_payment_method: paymentData.paymentMethodId,
+        },
+      });
+    } catch (error) {
+      console.error('Error creating Stripe customer:', error);
+      throw error;
+    }
+
+    // Get or create Stripe price
+    const priceId = await this.createStripeProduct(plan);
+
+    // Create Stripe subscription
+    let stripeSubscription;
+    try {
+      stripeSubscription = await stripe.subscriptions.create({
+        customer: customer.id,
+        items: [{ price: priceId }],
+        expand: ['latest_invoice.payment_intent'],
+        metadata: { userId: userId.toString(), planId: plan.id },
+      });
+    } catch (error) {
+      console.error('Error creating Stripe subscription:', error);
+      throw error;
+    }
+
+    const startDate = new Date(stripeSubscription.current_period_start * 1000);
+    const endDate = new Date(stripeSubscription.current_period_end * 1000);
+
+    return UserSubscription.create({
+      userId,
+      planId,
+      startDate,
+      endDate,
+      status: stripeSubscription.status,
+      paymentMethod: 'stripe',
+      stripeSubscriptionId: stripeSubscription.id,
+      stripeCustomerId: customer.id,
+    });
+  }
+
+  static async cancelSubscription(userId) {
+    const subscription = await this.getCurrentSubscription(userId);
+    if (!subscription) throw new Error('No active subscription found');
+
+    // Cancel Stripe subscription
+    try {
+      await stripe.subscriptions.del(subscription.stripeSubscriptionId);
+    } catch (error) {
+      console.error('Error canceling Stripe subscription:', error);
+      throw error;
+    }
+
+    return subscription.update({ 
+      status: 'canceled',
+      endDate: new Date() // Ends immediately
+    });
+  }
+
+   static async handlePaymentSucceeded(invoice) {
+    const subscriptionId = invoice.subscription;
+    const subscription = await UserSubscription.findOne({
+      where: { stripeSubscriptionId: subscriptionId }
+    });
+
+    if (subscription) {
+      const periodEnd = new Date(invoice.period_end * 1000);
+      await subscription.update({
+        status: 'active',
+        endDate: periodEnd
+      });
+    }
+  }
+
+  static async handlePaymentFailed(invoice) {
+    const subscriptionId = invoice.subscription;
+    const subscription = await UserSubscription.findOne({
+      where: { stripeSubscriptionId: subscriptionId }
+    });
+
+    if (subscription) {
+      await subscription.update({ status: 'past_due' });
+    }
+  }
+
+  static async handleSubscriptionDeleted(stripeSubscription) {
+    const subscription = await UserSubscription.findOne({
+      where: { stripeSubscriptionId: stripeSubscription.id }
+    });
+
+    if (subscription) {
+      await subscription.update({ 
+        status: 'canceled',
+        endDate: new Date()
+      });
+    }
   }
 }
 
