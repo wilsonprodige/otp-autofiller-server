@@ -7,41 +7,63 @@ const { UserSubscription, BillingPlan } = require('../models');
 
 const createCheckoutSession = async (req, res, next) => {
 
-try {
-    const { planId, successUrl, cancelUrl } = req.body;
-    const userId = req.user.id;
-    
-    const plan = await BillingPlan.findByPk(planId);
-    if (!plan) {
-      return new ApiResponse(res, httpStatus[404], { error: 'Plan not found' }, 'success');
+  try {
+      const { planId, successUrl, cancelUrl } = req.body;
+      const userId = req.user.id;
       
-    }
+      const plan = await BillingPlan.findByPk(planId);
+      if (!plan) {
+        return new ApiResponse(res, httpStatus[404], { error: 'Plan not found' }, 'success');
+        
+      }
 
-    const priceId = await SubscriptionService.createStripeProduct(plan);
+      const priceId = await SubscriptionService.createStripeProduct(plan);
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [{
-        price: priceId,
-        quantity: 1,
-      }],
-      mode: 'subscription',
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      customer_email: req.user.email,
-      metadata: {
-        userId: userId.toString(),
-        planId: planId.toString()
-      },
-    });
-    return new ApiResponse(res, httpStatus.OK, { sessionId: session.id }, 'success')
-    
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [{
+          price: priceId,
+          quantity: 1,
+        }],
+        mode: 'subscription',
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        customer_email: req.user.email,
+        metadata: {
+          userId: userId.toString(),
+          planId: planId.toString()
+        },
+      });
+      //console.log('session--->', session);
+      return new ApiResponse(res, httpStatus.OK, { sessionId: session.id,url: session?.url }, 'success')
+      
   } catch (error) {
     console.error('Error creating checkout session:', error);
     return new ApiResponse(res, httpStatus[500], { error: error.message }, 'error')
   }
   
 };
+
+const verifyStripeSession = async (req, res, next) =>{
+  const { session_id } = req.query;
+  SubscriptionService.createSubscription(req.user.id,session?.meta?.planId,session.payment_method);
+  try {
+    
+    
+    if (session.payment_status === 'paid') {
+
+      const session = await stripe.checkout.sessions.retrieve(session_id);
+      // ✅ Payment succeeded! Save to DB, grant access, etc.
+      //res.json({ paymentStatus: 'paid', customerEmail: session.customer_email });
+      return new ApiResponse(res, httpStatus.OK, { paymentStatus: 'paid', customerEmail: session.customer_email }, 'success')
+    } else {
+      return new ApiResponse(res, httpStatus[400], { error: 'Payment not completed' }, 'error');
+      r//es.status(400).json({ error: 'Payment not completed' });
+    }
+  } catch (error) {
+    return new ApiResponse(res, httpStatus[500], { error: 'Invalid session ID' }, 'error');
+  }
+}
 
 const webhookCallbackHandler = async (req, res, next) =>{
     const sig = req.headers['stripe-signature'];
@@ -60,7 +82,7 @@ const webhookCallbackHandler = async (req, res, next) =>{
 
     try {
         await SubscriptionService.handleStripeWebhook(event);
-        return new ApiResponse(res, httpStatus[400], { received: true }, 'success');
+        return new ApiResponse(res, httpStatus[200], { received: true }, 'success');
     } catch (error) {
         console.error('Error handling webhook:', error);
         return new ApiResponse(res, httpStatus[500], { error: error.message }, 'error');

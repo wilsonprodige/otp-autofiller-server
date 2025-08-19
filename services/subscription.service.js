@@ -3,6 +3,45 @@ const moment = require('moment');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 class SubscriptionService {
+
+  static async handleStripeWebhook(event) {
+    const { type, data } = event;
+    info('--->stripe data-->', data?.object,type);
+
+    switch(type){
+
+          case 'invoice.payment_succeeded':
+            await this.handlePaymentSucceeded(data.object);
+            break;
+
+          
+          case 'invoice.payment_failed':
+            await this.handlePaymentFailed(data.object);
+            break;
+
+          
+          case 'customer.subscription.deleted':
+            await this.handleSubscriptionDeleted(data.object);
+            break;
+
+          
+          case 'customer.subscription.updated':
+            await this.handleSubscriptionUpdated(data.object);
+            break;
+
+          // case 'customer.subscription.trial_will_end':
+          //   // Notify user before trial ends
+          //   break;
+          // case 'checkout.session.completed':
+          //   // Handle one-time payments
+          //   break;
+
+          
+          default:
+            console.log(`Unhandled Stripe event type: ${type}`);
+      
+    }
+  }
   static async getPlans() {
     return BillingPlan.findAll({
       where: { isActive: true },
@@ -237,6 +276,22 @@ class SubscriptionService {
       await subscription.update({ 
         status: 'canceled',
         endDate: new Date()
+      });
+    }
+  }
+  //subscription change
+  static async handleSubscriptionUpdated(stripeSubscription) {
+    const subscription = await UserSubscription.findOne({
+      where: { stripeSubscriptionId: stripeSubscription.id }
+    });
+
+    if (subscription) {
+      const endDate = new Date(stripeSubscription.current_period_end * 1000);
+      await subscription.update({
+        status: stripeSubscription.status,
+        endDate: endDate,
+        // Update planId if changed (extract from Stripe metadata)
+        planId: stripeSubscription.metadata?.planId || subscription.planId
       });
     }
   }
