@@ -114,5 +114,6 @@ const customerPortal = async (req,res, next)=>{
 module.exports = {
   createCheckoutSession,
   webhookCallbackHandler,
-  customerPortal
+  customerPortal,
+  verifyStripeSession
 };
