@@ -35,7 +35,16 @@ module.exports= (sequelize, DataTypes)=>{
         allowNull: false
         },
         status: {
-        type: DataTypes.ENUM('active', 'expired', 'canceled'),
+        type: DataTypes.ENUM(
+          'active', 
+          'trialing', 
+          'past_due', 
+          'canceled', 
+          'expired',
+          'incomplete',
+          'incomplete_expired',
+          'paused'
+        ),
         allowNull: false,
         defaultValue: 'active'
         },
@@ -46,6 +55,26 @@ module.exports= (sequelize, DataTypes)=>{
         stripeSubscriptionId: {
         type: DataTypes.STRING,
         allowNull: true
+        },
+        stripeCustomerId: {
+          type: DataTypes.STRING,
+          allowNull: true
+        },
+        previousSubscriptionId: {
+          type: DataTypes.INTEGER,
+          allowNull: true,
+          references: {
+            model: 'user_subscriptions',
+            key: 'id'
+          }
+        },
+        cancellationReason: {
+          type: DataTypes.STRING,
+          allowNull: true
+        },
+        trialEndsAt: {
+          type: DataTypes.DATE,
+          allowNull: true
         }
     },
     {
@@ -76,6 +105,10 @@ module.exports= (sequelize, DataTypes)=>{
     UserSubscription.belongsTo(models.BillingPlan, {
       foreignKey: 'planId',
       as: 'plan'
+    });
+    UserSubscription.hasMany(models.UserSubscription, {
+      foreignKey: 'previousSubscriptionId',
+      as: 'subsequentSubscriptions'
     });
   };
 return UserSubscription;

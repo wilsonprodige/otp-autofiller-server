@@ -5,7 +5,7 @@ const stripeController = require('../controlllers/stripe.controller');
 const {auth} = require('../middlewares/auth.middleware')
 
 router.get('/plans', subscriptioController.plans);
-router.post('/my-subscription', subscriptioController.mySubscription);
+router.get('/my-subscription', subscriptioController.mySubscription);
 // router.post('/my-subscription', subscriptioController.mySubscription);
 router.post('/subscribe', subscriptioController.subscribe);
 router.post('/upgrade', subscriptioController.upgrade);

@@ -64,38 +64,43 @@ class SubscriptionService {
     });
   }
 
-  static async createSubscription(userId, planId, paymentData = {}) {
-    const plan = await BillingPlan.findByPk(planId);
-    if (!plan) throw new Error('Plan not found');
+  
 
-    const startDate = new Date();
-    const endDate = moment(startDate).add(plan.durationDays, 'days').toDate();
+  static async upgradeSubscription(userId, newPlanId, stripeSubscription = {}) {
+    const currentSub = await  this.getCurrentSubscription(userId);
+    const newPlan = await BillingPlan.findByPk(newPlanId);
+    if (!newPlan) throw new Error('New plan not found');
 
-    // In a real app, you would integrate with Stripe/PayPal here
-    // For now, we'll just create the subscription record
+    if (!currentSub) {
+      throw new Error('No existing subscription found for upgrade');
+    }
+
+    if (currentSub?.stripeSubscriptionId) {
+      try {
+        await stripe.subscriptions.del(currentSub.stripeSubscriptionId);
+      } catch (error) {
+        console.error('Error canceling old Stripe subscription:', error);
+      }
+    }
+
+    await currentSub.update({ 
+      status: 'canceled',
+      endDate: new Date()
+    });
+
+    const startDate = new Date(stripeSubscription.items.data[0].current_period_start * 1000);
+    const endDate = new Date(stripeSubscription.items.data[0].current_period_end * 1000);
+
     return UserSubscription.create({
       userId,
       planId,
       startDate,
       endDate,
-      status: 'active',
-      paymentMethod: paymentData.method || 'free',
-      stripeSubscriptionId: paymentData.stripeId || null
+      status: stripeSubscription.status,
+      paymentMethod: 'stripe',
+      stripeSubscriptionId: stripeSubscription?.id ,
+      previousSubscriptionId: currentSub.id 
     });
-  }
-
-  static async upgradeSubscription(userId, newPlanId, paymentData = {}) {
-    const currentSub = await this.getCurrentSubscription(userId);
-    const newPlan = await BillingPlan.findByPk(newPlanId);
-    if (!newPlan) throw new Error('New plan not found');
-
-    // Cancel current subscription if exists
-    if (currentSub) {
-      await currentSub.update({ status: 'canceled' });
-    }
-
-    // Create new subscription
-    return this.createSubscription(userId, newPlanId, paymentData);
   }
 
   static async cancelSubscription(userId) {
@@ -171,45 +176,13 @@ class SubscriptionService {
     }
   }
 
-  static async createSubscription(userId, planId, paymentData = {}) {
+  static async createSubscription(userId, planId, stripeSubscription={}) {
+    console.log('--create subscription', userId,planId,stripeSubscription);
     const plan = await BillingPlan.findByPk(planId);
     if (!plan) throw new Error('Plan not found');
 
-    // Create Stripe customer if not exists
-    let customer;
-    try {
-      customer = await stripe.customers.create({
-        email: paymentData.email,
-        metadata: { userId: userId.toString() },
-        payment_method: paymentData.paymentMethodId,
-        invoice_settings: {
-          default_payment_method: paymentData.paymentMethodId,
-        },
-      });
-    } catch (error) {
-      console.error('Error creating Stripe customer:', error);
-      throw error;
-    }
-
-    // Get or create Stripe price
-    const priceId = await this.createStripeProduct(plan);
-
-    // Create Stripe subscription
-    let stripeSubscription;
-    try {
-      stripeSubscription = await stripe.subscriptions.create({
-        customer: customer.id,
-        items: [{ price: priceId }],
-        expand: ['latest_invoice.payment_intent'],
-        metadata: { userId: userId.toString(), planId: plan.id },
-      });
-    } catch (error) {
-      console.error('Error creating Stripe subscription:', error);
-      throw error;
-    }
-
-    const startDate = new Date(stripeSubscription.current_period_start * 1000);
-    const endDate = new Date(stripeSubscription.current_period_end * 1000);
+    const startDate = new Date(stripeSubscription.items.data[0].current_period_start * 1000);
+    const endDate = new Date(stripeSubscription.items.data[0].current_period_end * 1000);
 
     return UserSubscription.create({
       userId,
@@ -218,8 +191,8 @@ class SubscriptionService {
       endDate,
       status: stripeSubscription.status,
       paymentMethod: 'stripe',
-      stripeSubscriptionId: stripeSubscription.id,
-      stripeCustomerId: customer.id,
+      stripeSubscriptionId: stripeSubscription?.id 
+      // stripeCustomerId: stripeSubscription?.customer
     });
   }
 
@@ -278,6 +251,8 @@ class SubscriptionService {
         endDate: new Date()
       });
     }
+
+    
   }
   //subscription change
   static async handleSubscriptionUpdated(stripeSubscription) {
